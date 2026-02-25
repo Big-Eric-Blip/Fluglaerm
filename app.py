@@ -16,9 +16,22 @@ from database import init_db, process_noise_tracking, get_recent_history
 init_db()
 
 def load_credentials():
-    with open("credentials.json", "r") as f:
-        creds = json.load(f)
-    return creds["clientId"], creds["clientSecret"]
+    # 1. Sicherer Check: Existieren Secrets überhaupt?
+    try:
+        if "clientId" in st.secrets:
+            return st.secrets["clientId"], st.secrets["clientSecret"]
+    except Exception:
+        # Falls keine Secrets da sind (lokal), einfach weitermachen
+        pass
+
+    # 2. Versuch: Lokale Datei (Dein PC)
+    try:
+        with open("credentials.json", "r") as f:
+            creds = json.load(f)
+        return creds["clientId"], creds["clientSecret"]
+    except FileNotFoundError:
+        st.error("Fehler: 'credentials.json' nicht gefunden und keine Cloud-Secrets hinterlegt!")
+        return None, None
 
 @st.cache_resource
 def get_client():
