@@ -1,4 +1,4 @@
-# ✈️ Fluglärm-Tracker Leipzig/Halle (EDDP)
+# ✈️ Fluglärm-Tracker
 
 Ein Echtzeit-Dashboard zur Überwachung und Dokumentation von Fluglärmereignissen rund um den Flughafen Leipzig/Halle. Die App visualisiert Flugbewegungen und berechnet potenzielle Lärmzonen basierend auf Live-Daten.
 
@@ -8,7 +8,6 @@ Ein Echtzeit-Dashboard zur Überwachung und Dokumentation von Fluglärmereigniss
 * **Lärm-Simulation:** Dynamische Berechnung von Lärmschutzzonen (dB-Schätzung) basierend auf Flughöhe und Entfernung.
 * **Cloud-Historie:** Automatische Speicherung von Lärmereignissen in einer Supabase (PostgreSQL) Datenbank.
 * **Automatisches Cleanup:** Rollierender 7-Tage-Speicher sorgt für aktuelle Daten ohne Überlastung.
-* **Interaktive Map:** Filterbare Karte mit detaillierten Fluginformationen (Callsign, Höhe, Geschwindigkeit).
 
 ## 🛠️ Tech Stack
 
