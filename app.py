@@ -31,7 +31,7 @@ def load_credentials():
         st.error("Fehler: 'credentials.json' nicht gefunden!")
         return None, None
 
-@st.cache_data(ttl=60) # Daten werden nur alle 60 Sekunden wirklich neu geladen
+@st.cache_data(ttl=60, show_spinner=False) # Daten werden nur alle 60 Sekunden wirklich neu geladen
 def get_cached_history(limit):
     return db.get_recent_history(limit=limit)
 
@@ -44,7 +44,7 @@ def get_client():
     c_id, c_secret = load_credentials()
     return OpenSkyClient(c_id, c_secret)
 
-@st.cache_data(ttl=15)
+@st.cache_data(ttl=15, show_spinner=False)
 def get_flight_data():
     client = get_client()
     bbox = ["47.2", "5.8", "55.1", "15.1"]
