@@ -1,4 +1,4 @@
-credentials.json
-.venv/
-.idea/
+.streamlit/secrets.toml
+noise_history.db
 __pycache__/
+.venv/

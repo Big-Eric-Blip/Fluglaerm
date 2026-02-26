@@ -6,6 +6,7 @@ import time
 import sqlite3
 import json
 from datetime import datetime
+import database as db
 
 # Eigene Module
 from api_client import OpenSkyClient
@@ -73,9 +74,38 @@ st.sidebar.divider()
 show_heatmap = st.sidebar.checkbox("🔥 Lärm-Hotspots (Heatmap)", value=False)
 show_live_traffic = st.sidebar.checkbox("✈️ Aktuellen Flugverkehr anzeigen", value=True)
 
-st.sidebar.subheader("🚫 Einzelne Flugnummern filtern")
-exclude_callsigns = st.sidebar.text_input("Flugnummern (z.B. DLH123, EWG456)")
-exclude_list = [x.strip().upper() for x in exclude_callsigns.split(",") if x.strip()]
+with st.sidebar:
+    st.divider()
+
+    # Der Expander sorgt dafür, dass es standardmäßig zugeklappt ist
+    with st.expander("ℹ️ Wie werden Lärmzonen berechnet?"):
+        st.markdown("""
+        **Berechnungsgrundlage:**
+        Wir nutzen das Abstandsgesetz für Schall. Der Schalldruck nimmt mit der Entfernung zum Flugzeug quadratisch ab.
+
+        **Farblegende:**
+        * 🔴 **Extrem (75+ dB):** Sehr niedrige Flughöhe, unmittelbare Nähe.
+        * 🟠 **Hoch (65-75 dB):** Deutliche Lärmbelastung.
+        * 🟡 **Mittel (55-65 dB):** Typischer Pegel bei Überflügen.
+        * 🔵 **Gering (<55 dB):** Hintergrundgeräusch oder hohe Überflüge.
+
+        ---
+        **Daten:**
+        * **Live-Tracking:** via OpenSky Network.
+        * **Historie:** Supabase Cloud (rollierend 7 Tage).
+        """)
+
+with st.sidebar:
+    st.divider()
+    # Prüfen, welche Verbindung get_connection() aktuell liefert
+    if db.get_connection() is not None:
+        st.success("✅ Verbunden mit Supabase Cloud")
+        # Optional: Anzahl der Datensätze anzeigen
+        history = db.get_recent_history(limit=1)
+        if not history.empty:
+            st.caption(f"Letzter Sync: {history['end_time'].iloc[0]}")
+    else:
+        st.warning("🏠 Modus: Lokale Datenbank (SQLite)")
 
 # --- MAIN UI ---
 st.title(f"✈️ Live-Monitor: Deutschland")
