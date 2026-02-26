@@ -21,7 +21,7 @@ Ein Echtzeit-Dashboard zur Überwachung und Dokumentation von Fluglärmereigniss
 
 1.  **Repository klonen:**
     ```bash
-    git clone [https://github.com/DEIN_USERNAME/Fluglaerm.git](https://github.com/DEIN_USERNAME/Fluglaerm.git)
+    git clone [https://github.com/Big-Eric-Blip/Fluglaerm.git](https://github.com/Big-Eric-Blip/Fluglaerm.git)
     cd Fluglaerm
     ```
 
