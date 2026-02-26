@@ -46,6 +46,16 @@ def get_flight_data():
     asyncio.set_event_loop(loop)
     return loop.run_until_complete(client.fetch_full_data(bbox))
 
+@st.cache_resource
+def load_aircraft_models():
+    import json
+    try:
+        with open("aircraft_cache.json", "r") as f:
+            return json.load(f)
+    except Exception as e:
+        st.error(f"Konnte Flugzeug-Datenbank nicht laden: {e}")
+        return {}
+
 # --- KONFIGURATION ---
 LIMIT_LAERM = 55
 LIMIT_UNGESUND = 65
@@ -76,10 +86,13 @@ with st.spinner('Lade Flugdaten...'):
 df = pd.DataFrame(flights) if flights else pd.DataFrame()
 
 # --- DATEN-VERARBEITUNG ---
+model_db = load_aircraft_models()
+
 if not df.empty:
-    df = df[df['alt'] > 100].copy()
-    if exclude_list and not df.empty:
-        df = df[~df['callsign'].str.upper().isin(exclude_list)]
+    # Modell-Zuordnung:
+    # Wir schauen im JSON nach. Wenn der Wert leer oder nicht da ist, schreiben wir 'Unknown'
+    df['model'] = df['icao24'].apply(lambda x: model_db.get(x.lower(), "") if x else "")
+    df['model'] = df['model'].replace("", "Unknown")
 
 # Spalten-Garantie gegen KeyErrors
 if 'noise_radius' not in df.columns: df['noise_radius'] = 0.0
