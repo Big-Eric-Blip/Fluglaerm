@@ -17,21 +17,18 @@ from database import init_db, process_noise_tracking, get_recent_history
 init_db()
 
 def load_credentials():
-    # 1. Sicherer Check: Existieren Secrets überhaupt?
     try:
         if "clientId" in st.secrets:
             return st.secrets["clientId"], st.secrets["clientSecret"]
     except Exception:
-        # Falls keine Secrets da sind (lokal), einfach weitermachen
         pass
 
-    # 2. Versuch: Lokale Datei (Dein PC)
     try:
         with open("credentials.json", "r") as f:
             creds = json.load(f)
         return creds["clientId"], creds["clientSecret"]
     except FileNotFoundError:
-        st.error("Fehler: 'credentials.json' nicht gefunden und keine Cloud-Secrets hinterlegt!")
+        st.error("Fehler: 'credentials.json' nicht gefunden!")
         return None, None
 
 @st.cache_resource
@@ -49,12 +46,10 @@ def get_flight_data():
 
 @st.cache_resource
 def load_aircraft_models():
-    import json
     try:
         with open("aircraft_cache.json", "r") as f:
             return json.load(f)
     except Exception as e:
-        st.error(f"Konnte Flugzeug-Datenbank nicht laden: {e}")
         return {}
 
 # --- KONFIGURATION ---
@@ -67,7 +62,6 @@ st.set_page_config(page_title="Fluglärm-Monitor Deutschland", layout="wide")
 # --- SIDEBAR ---
 st.sidebar.header("🛠️ Monitoring & Filter")
 live_updates = st.sidebar.toggle("Live-Updates (15s)", value=True)
-# Hier definieren wir den Platzhalter SOFORT, damit er immer existiert
 sidebar_progress_placeholder = st.sidebar.empty()
 
 st.sidebar.divider()
@@ -75,35 +69,22 @@ show_heatmap = st.sidebar.checkbox("🔥 Lärm-Hotspots (Heatmap)", value=False)
 show_live_traffic = st.sidebar.checkbox("✈️ Aktuellen Flugverkehr anzeigen", value=True)
 
 with st.sidebar:
-    st.divider()
-
-    # Der Expander sorgt dafür, dass es standardmäßig zugeklappt ist
     with st.expander("ℹ️ Wie werden Lärmzonen berechnet?"):
         st.markdown("""
-        **Berechnungsgrundlage:**
-        Wir nutzen das Abstandsgesetz für Schall. Der Schalldruck nimmt mit der Entfernung zum Flugzeug quadratisch ab.
-
         **Farblegende:**
-        * 🔴 **Extrem (75+ dB):** Sehr niedrige Flughöhe, unmittelbare Nähe.
-        * 🟠 **Hoch (65-75 dB):** Deutliche Lärmbelastung.
-        * 🟡 **Mittel (55-65 dB):** Typischer Pegel bei Überflügen.
-        * 🔵 **Gering (<55 dB):** Hintergrundgeräusch oder hohe Überflüge.
-
-        ---
-        **Daten:**
-        * **Live-Tracking:** via OpenSky Network.
-        * **Historie:** Supabase Cloud (rollierend 7 Tage).
+        * 🔴 **Extrem (75+ dB)** | 🟠 **Hoch (65-75 dB)**
+        * 🟡 **Mittel (55-65 dB)** | 🔵 **Gering (<55 dB)**
         """)
 
-with st.sidebar:
     st.divider()
-    # Prüfen, welche Verbindung get_connection() aktuell liefert
+    # Check Verbindung & History-Status
     if db.get_connection() is not None:
         st.success("✅ Verbunden mit Supabase Cloud")
-        # Optional: Anzahl der Datensätze anzeigen
-        history = db.get_recent_history(limit=1)
-        if not history.empty:
-            st.caption(f"Letzter Sync: {history['end_time'].iloc[0]}")
+        history_raw = db.get_recent_history(limit=1)
+        # Fix: Prüfung für Liste (Supabase) oder DataFrame (SQLite)
+        if history_raw and len(history_raw) > 0:
+            last_entry = history_raw[0] if isinstance(history_raw, list) else history_raw.iloc[0]
+            st.caption(f"Letzter Sync: {last_entry.get('end_time') if isinstance(last_entry, dict) else last_entry['end_time']}")
     else:
         st.warning("🏠 Modus: Lokale Datenbank (SQLite)")
 
@@ -114,23 +95,13 @@ with st.spinner('Lade Flugdaten...'):
     flights = get_flight_data()
 
 df = pd.DataFrame(flights) if flights else pd.DataFrame()
-
-# --- DATEN-VERARBEITUNG ---
 model_db = load_aircraft_models()
 
 if not df.empty:
-    # Modell-Zuordnung:
-    # Wir schauen im JSON nach. Wenn der Wert leer oder nicht da ist, schreiben wir 'Unknown'
-    df['model'] = df['icao24'].apply(lambda x: model_db.get(x.lower(), "") if x else "")
-    df['model'] = df['model'].replace("", "Unknown")
-
-# Spalten-Garantie gegen KeyErrors
-if 'noise_radius' not in df.columns: df['noise_radius'] = 0.0
-if 'critical_radius' not in df.columns: df['critical_radius'] = 0.0
-
-if not df.empty:
+    df['model'] = df['icao24'].apply(lambda x: model_db.get(x.lower(), "Unknown") if x else "Unknown")
     df['noise_radius'] = df.apply(lambda r: get_noise_radius(r['alt'], LIMIT_LAERM, r['model']), axis=1).fillna(0)
     df['critical_radius'] = df.apply(lambda r: get_noise_radius(r['alt'], LIMIT_UNGESUND, r['model']), axis=1).fillna(0)
+    # Globales Speichern (unabhängig von der Anzeige)
     process_noise_tracking(df, "Deutschland", LIMIT_LAERM)
 
 # --- LAYER VORBEREITUNG ---
@@ -138,16 +109,16 @@ layers = []
 
 if show_heatmap:
     try:
-        conn = sqlite3.connect("noise_history.db")
-        hist_data = pd.read_sql_query("SELECT start_lat, start_lon, min_alt FROM noise_history", conn)
-        conn.close()
-        if not hist_data.empty:
+        hist_data_raw = db.get_recent_history(limit=1000)
+        if hist_data_raw:
+            hist_data = pd.DataFrame(hist_data_raw)
             hist_data['intensity'] = (12000 - hist_data['min_alt']).clip(lower=0)
             layers.append(pdk.Layer(
                 "HeatmapLayer", hist_data, get_position=['start_lon', 'start_lat'],
                 get_weight='intensity', radius_pixels=40, intensity=1, threshold=0.1
             ))
-    except: pass
+    except Exception as e:
+        st.sidebar.error(f"Heatmap-Fehler: {e}")
 
 if show_live_traffic and not df.empty:
     layers.extend([
@@ -160,23 +131,11 @@ if show_live_traffic and not df.empty:
     ])
 
 # --- KARTE ---
-# Wir nutzen einen stabilen Dark-Mode Style von CartoDB (funktioniert ohne Mapbox-Token)
-dark_style = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
-light_style = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
-
-# Wenn Heatmap an, dann IMMER Darkmode, sonst nach Wahl (hier jetzt Standard Dark)
-map_style = dark_style if show_heatmap else dark_style
-
 st.pydeck_chart(pdk.Deck(
     layers=layers,
-    initial_view_state=pdk.ViewState(
-        latitude=GERMANY_CENTER["lat"],
-        longitude=GERMANY_CENTER["lon"],
-        zoom=6,
-        pitch=0
-    ),
+    initial_view_state=pdk.ViewState(latitude=GERMANY_CENTER["lat"], longitude=GERMANY_CENTER["lon"], zoom=6),
     tooltip={"html": "<b>Flug:</b> {callsign}<br/><b>Modell:</b> {model}<br/><b>Höhe:</b> {alt}m"} if show_live_traffic else None,
-    map_style=map_style
+    map_style='https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
 ))
 
 # --- TABELLEN ---
@@ -187,14 +146,13 @@ if not df.empty:
 
 st.divider()
 if st.checkbox("📊 Letzte Lärm-Ereignisse (Historie)"):
-    hist_df = get_recent_history(limit=15)
-    if not hist_df.empty:
+    hist_raw = db.get_recent_history(limit=15)
+    if hist_raw:
+        hist_df = pd.DataFrame(hist_raw)
         hist_df['Zeit von'] = pd.to_datetime(hist_df['start_time']).dt.strftime('%H:%M:%S')
         hist_df['bis'] = pd.to_datetime(hist_df['end_time']).dt.strftime('%H:%M:%S')
-        hist_df['Dauer (Sek)'] = hist_df['duration_sec'].round(0).astype(int)
-        hist_df['Min. Höhe (m)'] = hist_df['min_alt'].round(0).astype(int)
         display_df = hist_df.rename(columns={'callsign': 'Flugnummer', 'model': 'Modell'})
-        st.dataframe(display_df[['Flugnummer', 'Modell', 'Zeit von', 'bis', 'Dauer (Sek)', 'Min. Höhe (m)']],
+        st.dataframe(display_df[['Flugnummer', 'Modell', 'Zeit von', 'bis', 'duration_sec', 'min_alt']],
                      hide_index=True, width='stretch')
 
 # --- REFRESH ---
@@ -203,5 +161,3 @@ if live_updates:
         sidebar_progress_placeholder.progress(int((i / 15) * 100), text=f"Update in {i}s")
         time.sleep(1)
     st.rerun()
-else:
-    sidebar_progress_placeholder.info("Updates pausiert.")

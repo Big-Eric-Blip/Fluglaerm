@@ -145,15 +145,11 @@ def process_noise_tracking(df, region_name, current_db_threshold):
         conn.close()
 
 
-def get_recent_history(limit=5):
-    """Holt die Historie entweder aus Supabase oder SQLite."""
-    supabase = get_connection()
-    if supabase:
-        try:
-            response = supabase.table("noise_history").select("*").order("end_time", desc=True).limit(limit).execute()
-            return pd.DataFrame(response.data)
-        except Exception:
-            return pd.DataFrame()
+def get_recent_history(limit=50):
+    conn = get_connection()
+    if conn:
+        # Hier holen wir die Daten aus der Cloud
+        return conn.table("noise_history").select("*").order("end_time", desc=True).limit(limit).execute().data
     else:
         conn = sqlite3.connect("noise_history.db")
         query = f"SELECT * FROM noise_history ORDER BY end_time DESC LIMIT {limit}"
