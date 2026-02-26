@@ -31,6 +31,14 @@ def load_credentials():
         st.error("Fehler: 'credentials.json' nicht gefunden!")
         return None, None
 
+@st.cache_data(ttl=60) # Daten werden nur alle 60 Sekunden wirklich neu geladen
+def get_cached_history(limit):
+    return db.get_recent_history(limit=limit)
+
+# Später im Heatmap-Teil nutzt du dann:
+
+    # ... Rest des Codes
+
 @st.cache_resource
 def get_client():
     c_id, c_secret = load_credentials()
@@ -128,7 +136,7 @@ layers = []
 
 if show_heatmap:
     try:
-        hist_data_raw = db.get_recent_history(limit=1000)
+        hist_data_raw = get_cached_history(limit=1000)
         if hist_data_raw:
             hist_data = pd.DataFrame(hist_data_raw)
             hist_data['intensity'] = (12000 - hist_data['min_alt']).clip(lower=0)
