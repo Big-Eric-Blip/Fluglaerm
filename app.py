@@ -71,9 +71,25 @@ show_live_traffic = st.sidebar.checkbox("✈️ Aktuellen Flugverkehr anzeigen",
 with st.sidebar:
     with st.expander("ℹ️ Wie werden Lärmzonen berechnet?"):
         st.markdown("""
-        **Farblegende:**
-        * 🔴 **Extrem (75+ dB)** | 🟠 **Hoch (65-75 dB)**
-        * 🟡 **Mittel (55-65 dB)** | 🔵 **Gering (<55 dB)**
+        ### Wie werden die Zonen berechnet?
+        Die Lärmbelastung wird auf Basis der **Flughöhe** ($h$) und der **horizontalen Entfernung** zum Flugzeug berechnet. 
+        
+        Wir nutzen das physikalische **Abstandsgesetz für Schall**: Der Schalldruck nimmt mit der Entfernung quadratisch ab ($1/r^2$). Die angezeigten Radien simulieren, wo welche Lautstärke am Boden ankommt.
+
+        ### Farblegende
+        * 🔴 **Extrem (75+ dB):** Sehr niedrige Flughöhe, unmittelbare Nähe zur Einflugschneise. Gehörschutz empfohlen.
+        * 🟠 **Hoch (65-75 dB):** Deutliche Lärmbelastung, normale Unterhaltung im Freien erschwert.
+        * 🟡 **Mittel (55-65 dB):** Typischer Pegel bei Überflügen in mittlerer Höhe.
+        * 🔵 **Gering (<55 dB):** Hintergrundgeräusch oder sehr hohe Überflüge.
+
+        ---
+        ### Datenquellen & Technik
+        * **Live-Daten:** [OpenSky Network](https://opensky-network.org/) API.
+        * **Cloud-Speicher:** [Supabase](https://supabase.com) (PostgreSQL).
+        * **Historie:** Alle Ereignisse über 55 dB werden gespeichert.
+        * **Cleanup:** Daten werden rollierend für **7 Tage** vorgehalten und danach automatisch gelöscht.
+        
+        *Hinweis: Die dB-Werte sind mathematische Schätzungen und ersetzen keine geeichte Messstation.*
         """)
 
     st.divider()
@@ -87,6 +103,9 @@ with st.sidebar:
             st.caption(f"Letzter Sync: {last_entry.get('end_time') if isinstance(last_entry, dict) else last_entry['end_time']}")
     else:
         st.warning("🏠 Modus: Lokale Datenbank (SQLite)")
+
+    st.divider()
+    sidebar_progress_placeholder = st.empty()
 
 # --- MAIN UI ---
 st.title(f"✈️ Live-Monitor: Deutschland")
