@@ -1,0 +1,4 @@
+[client]
+showErrorDetails = false
+# Das hier verhindert das Ausgrauen ("Blur") beim Laden:
+transitionEffect = "none"

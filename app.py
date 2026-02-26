@@ -35,11 +35,7 @@ def load_credentials():
 def get_cached_history(limit):
     return db.get_recent_history(limit=limit)
 
-# Später im Heatmap-Teil nutzt du dann:
-
-    # ... Rest des Codes
-
-@st.cache_resource
+@st.cache_resource(show_spinner=False)
 def get_client():
     c_id, c_secret = load_credentials()
     return OpenSkyClient(c_id, c_secret)
@@ -52,7 +48,7 @@ def get_flight_data():
     asyncio.set_event_loop(loop)
     return loop.run_until_complete(client.fetch_full_data(bbox))
 
-@st.cache_resource
+@st.cache_resource(show_spinner=False)
 def load_aircraft_models():
     try:
         with open("aircraft_cache.json", "r") as f:
