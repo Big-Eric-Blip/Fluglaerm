@@ -64,13 +64,22 @@ GERMANY_CENTER = {"lat": 51.16, "lon": 10.45}
 st.set_page_config(page_title="Fluglärm-Monitor Deutschland", layout="wide")
 
 # --- SIDEBAR ---
-st.sidebar.header("🛠️ Monitoring & Filter")
-live_updates = st.sidebar.toggle("Live-Updates (15s)", value=True)
-sidebar_progress_placeholder = st.sidebar.empty()
+st.sidebar.header("Monitoring & Filter")
+
+# Toggle
+live_updates = st.sidebar.toggle("Live-Updates", value=True)
+
+with st.sidebar.container(height=50):  # 50px Höhe reserviert
+    sidebar_progress_placeholder = st.empty()
+    if live_updates:
+        sidebar_progress_placeholder.info("⏳")
+    else:
+        sidebar_progress_placeholder.warning("⏸️")
 
 st.sidebar.divider()
-show_heatmap = st.sidebar.checkbox("🔥 Lärm-Hotspots (Heatmap)", value=False)
-show_live_traffic = st.sidebar.checkbox("✈️ Aktuellen Flugverkehr anzeigen", value=True)
+
+show_heatmap = st.sidebar.checkbox("Lärm-Hotspots", value=False)
+show_live_traffic = st.sidebar.checkbox("Aktuellen Flugverkehr anzeigen", value=True)
 
 with st.sidebar:
     with st.expander("ℹ️ Wie werden Lärmzonen berechnet?"):
@@ -108,11 +117,9 @@ with st.sidebar:
     else:
         st.warning("🏠 Modus: Lokale Datenbank (SQLite)")
 
-    st.divider()
-    sidebar_progress_placeholder = st.empty()
 
 # --- MAIN UI ---
-st.title(f"✈️ Live-Monitor: Deutschland")
+#st.title(f"✈️ Live-Monitor: Deutschland")
 
 with st.spinner('Lade Flugdaten...'):
     flights = get_flight_data()
@@ -164,23 +171,47 @@ st.pydeck_chart(pdk.Deck(
 # --- TABELLEN ---
 if not df.empty:
     st.subheader("Aktuelle Flüge (gefiltert)")
-    st.dataframe(df[['callsign', 'model', 'alt', 'noise_radius']].sort_values("noise_radius", ascending=False),
-                 hide_index=True, width='stretch')
+
+    # DataFrame mit deutschen Spaltennamen erstellen
+    display_df = df[['callsign', 'model', 'alt', 'noise_radius']].sort_values("noise_radius", ascending=False).copy()
+    display_df.columns = ['Flugnummer', 'Flugzeugtyp', 'Höhe (m)', 'Lärmradius (m)']
+
+    st.dataframe(display_df, hide_index=True, width='stretch')
 
 st.divider()
 if st.checkbox("📊 Letzte Lärm-Ereignisse (Historie)"):
     hist_raw = db.get_recent_history(limit=15)
     if hist_raw:
         hist_df = pd.DataFrame(hist_raw)
-        hist_df['Zeit von'] = pd.to_datetime(hist_df['start_time']).dt.strftime('%H:%M:%S')
-        hist_df['bis'] = pd.to_datetime(hist_df['end_time']).dt.strftime('%H:%M:%S')
-        display_df = hist_df.rename(columns={'callsign': 'Flugnummer', 'model': 'Modell'})
-        st.dataframe(display_df[['Flugnummer', 'Modell', 'Zeit von', 'bis', 'duration_sec', 'min_alt']],
-                     hide_index=True, width='stretch')
+
+        # Zeiten formatieren
+        hist_df['Start'] = pd.to_datetime(hist_df['start_time']).dt.strftime('%H:%M:%S')
+        hist_df['Ende'] = pd.to_datetime(hist_df['end_time']).dt.strftime('%H:%M:%S')
+
+        # Alle Spalten auf Deutsch umbenennen
+        display_df = hist_df.rename(columns={
+            'callsign': 'Flugnummer',
+            'model': 'Typ',
+            'Start': 'Start',
+            'Ende': 'Ende',
+            'duration_sec': 'Dauer (s)',
+            'min_alt': 'Min. Höhe (m)'
+        })
+
+        # Nur die relevanten Spalten anzeigen
+        st.dataframe(
+            display_df[['Flugnummer', 'Typ', 'Start', 'Ende', 'Dauer (s)', 'Min. Höhe (m)']],
+            hide_index=True,
+            width='stretch'
+        )
 
 # --- REFRESH ---
 if live_updates:
     for i in range(15, 0, -1):
-        sidebar_progress_placeholder.progress(int((i / 15) * 100), text=f"Update in {i}s")
+        # Nur Progressbalken, kein Text
+        sidebar_progress_placeholder.progress(int((i / 15) * 100))
         time.sleep(1)
     st.rerun()
+else:
+    # Nur wenn pausiert
+    sidebar_progress_placeholder.warning("⏸️ Pausiert")

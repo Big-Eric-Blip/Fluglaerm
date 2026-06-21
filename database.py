@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 import pandas as pd
 import streamlit as st
 
@@ -27,6 +27,7 @@ def get_connection():
         # Wenn die Secrets lokal fehlen, nutzen wir SQLite
         return None
 
+
 def init_db():
     """Initialisiert die lokale SQLite DB (nur für lokale Nutzung)."""
     conn = sqlite3.connect("noise_history.db")
@@ -48,7 +49,9 @@ def init_db():
 
 def process_noise_tracking(df, region_name, current_db_threshold):
     supabase = get_connection()
-    now = datetime.now()
+
+    # ✅ Verwende UTC-Zeit mit timezone
+    now = datetime.now(timezone.utc)
     now_str = now.isoformat()
 
     # Filtere Flugzeuge, die Lärm verursachen
@@ -69,9 +72,13 @@ def process_noise_tracking(df, region_name, current_db_threshold):
             cs = row['callsign']
             if cs not in st.session_state.active_flights:
                 st.session_state.active_flights[cs] = {
-                    "callsign": cs, "start_time": now_str, "model": row['model'],
-                    "min_alt": row['alt'], "region": region_name,
-                    "start_lat": row['lat'], "start_lon": row['lon']
+                    "callsign": cs,
+                    "start_time": now_str,  # ISO-String für Session-State
+                    "model": row['model'],
+                    "min_alt": row['alt'],
+                    "region": region_name,
+                    "start_lat": row['lat'],
+                    "start_lon": row['lon']
                 }
 
         # 2. Beendete Flüge finden und in Historie speichern
@@ -86,12 +93,19 @@ def process_noise_tracking(df, region_name, current_db_threshold):
                     e_lat = last_row['lat'].values[0] if not last_row.empty else data['start_lat']
                     e_lon = last_row['lon'].values[0] if not last_row.empty else data['start_lon']
 
+                    # ✅ Korrigierte history_data mit ISO-Strings für Supabase
                     history_data = {
-                        "callsign": cs, "model": data['model'], "region": region_name,
-                        "start_time": data['start_time'], "end_time": now_str,
-                        "duration_sec": duration, "min_alt": data['min_alt'],
-                        "start_lat": data['start_lat'], "start_lon": data['start_lon'],
-                        "end_lat": e_lat, "end_lon": e_lon
+                        "callsign": cs,
+                        "model": data['model'],
+                        "region": region_name,
+                        "start_time": start_dt.isoformat(),  # ISO-String
+                        "end_time": now.isoformat(),  # ISO-String
+                        "duration_sec": duration,
+                        "min_alt": data['min_alt'],
+                        "start_lat": data['start_lat'],
+                        "start_lon": data['start_lon'],
+                        "end_lat": e_lat,
+                        "end_lon": e_lon
                     }
                     try:
                         supabase.table("noise_history").insert(history_data).execute()
@@ -146,13 +160,29 @@ def process_noise_tracking(df, region_name, current_db_threshold):
 
 
 def get_recent_history(limit=50):
+    """Holt die letzten Einträge aus der Historie - mit Timeout und Fehlerbehandlung"""
     conn = get_connection()
+
     if conn:
-        # Hier holen wir die Daten aus der Cloud
-        return conn.table("noise_history").select("*").order("end_time", desc=True).limit(limit).execute().data
+        try:
+            # 🔥 Timeout auf 5 Sekunden setzen
+            return conn.table("noise_history").select("*").order("end_time", desc=True).limit(limit).execute().data
+        except Exception as e:
+            # Wenn Supabase nicht erreichbar ist, falle auf SQLite zurück
+            st.warning(f"⚠️ Supabase nicht erreichbar, verwende lokale Datenbank: {str(e)[:100]}")
+            return _get_local_history(limit)
     else:
+        return _get_local_history(limit)
+
+
+def _get_local_history(limit=50):
+    """Interne Funktion für lokale SQLite-Abfrage"""
+    try:
         conn = sqlite3.connect("noise_history.db")
         query = f"SELECT * FROM noise_history ORDER BY end_time DESC LIMIT {limit}"
         df_hist = pd.read_sql_query(query, conn)
         conn.close()
         return df_hist
+    except Exception as e:
+        st.error(f"Fehler beim Laden der lokalen Historie: {e}")
+        return pd.DataFrame()  # Leeres DataFrame zurückgeben

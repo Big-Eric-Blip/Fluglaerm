@@ -1,7 +1,6 @@
 import math
 
 # Mapping von ICAO-Typecodes auf geschätzte Schalleistungspegel (Lw)
-# Das ist eine Vereinfachung, aber viel besser als ein Einheitswert!
 NOISE_LOOKUP = {
     "A388": 155,  # Airbus A380
     "A359": 145,  # Airbus A350-900
@@ -25,7 +24,7 @@ def get_base_noise(typecode):
     if typecode in NOISE_LOOKUP:
         return NOISE_LOOKUP[typecode]
 
-    # 2. Heuristik: Grobe Kategorien (Startet der Code mit...)
+    # 2. Heuristik: Grobe Kategorien
     if typecode.startswith("A3"): return 142  # Meist Airbus Jets
     if typecode.startswith("B7"): return 143  # Meist Boeing Jets
     if typecode.startswith("C"):  return 120  # Meist kleinere Propellermaschinen
@@ -56,10 +55,8 @@ def get_noise_radius(alt_m, target_db, model_code="DEFAULT"):
 
         radius = math.sqrt(total_dist ** 2 - alt_m ** 2)
 
-        # --- NEU: LIMITIERUNG ---
-        # Ein Radius von mehr als 5km (5000m) ist unrealistisch für 55dB
-        # wegen atmosphärischer Dämpfung.
-        return min(radius, 5000)
+        # ✅ Begrenzung auf 10km (10.000m) - realistisch für große Flugzeuge
+        return min(radius, 10000)
 
     except:
         return 0
