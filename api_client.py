@@ -36,7 +36,7 @@ class OpenSkyClient:
         url = "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token"
         data = {"grant_type": "client_credentials", "client_id": self.client_id, "client_secret": self.client_secret}
 
-        timeout = httpx.Timeout(15.0, connect=10.0)
+        timeout = httpx.Timeout(60.0, connect=30.0)
         async with httpx.AsyncClient(timeout=timeout) as client:
             try:
                 response = await client.post(url, data=data)
