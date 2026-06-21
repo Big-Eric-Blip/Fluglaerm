@@ -3,15 +3,14 @@ import pandas as pd
 import pydeck as pdk
 import asyncio
 import time
-import sqlite3
 import json
 from datetime import datetime
-import database as db
 
-# Eigene Module
+import database as db
 from api_client import OpenSkyClient
 from physics import get_noise_radius
 from database import init_db, process_noise_tracking, get_recent_history
+
 
 # --- INITIALISIERUNG ---
 init_db()
