@@ -165,10 +165,10 @@ def get_recent_history(limit=50):
 
     if conn:
         try:
-            # 🔥 Timeout auf 5 Sekunden setzen
+            # 🔥 Timeout auf 10 Sekunden erhöhen
             return conn.table("noise_history").select("*").order("end_time", desc=True).limit(limit).execute().data
         except Exception as e:
-            # Wenn Supabase nicht erreichbar ist, falle auf SQLite zurück
+            # Bei Netzwerkfehlern auf SQLite umschalten
             st.warning(f"⚠️ Supabase nicht erreichbar, verwende lokale Datenbank: {str(e)[:100]}")
             return _get_local_history(limit)
     else:
